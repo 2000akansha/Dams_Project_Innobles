@@ -1,254 +1,313 @@
 import { catchAsyncError } from '../../middleware/catchAsyncError.js';
-import { mobileDashboard } from './../mobileModel/mobileDashboardSchema.js';
-import { beneficiaryDocs } from '../../schema/beneficiaryDocDetailSchema.js';
-import { beneficiaryDetails } from '../../schema/beneficiaryDetailsSchema.js';
+import  beneficiaryDocs  from '../../schema/beneficiaryDocDetailSchema.js';
 import ErrorHandler from '../../middleware/error.js';
-import {khatauniDetails} from '../../schema/khatauniDetails.js'
-
-
+import khatauniDetailsWeb from '../../webApi/webModel/khatauniDetailsSchema.js';
+import beneficiardetailsschemas from '../../webApi/webModel/benificiaryDetail.js';
+import villageList from '../../webApi/webModel/villageListSchema.js';
+import mongoose from 'mongoose';
 
 // DONT TOUCH THIS CODE //
+
+// export const getVillageDetails = catchAsyncError(async (req, res, next) => {
+//     try {
+//         const { userId, villageId } = req.query;
+//         // Ensure userId and villageId are provided
+//         if (!userId) {
+//             return next(new ErrorHandler('User ID is required.', 400));
+//         }
+//         // Fetch village details based on villageId if provided, else fetch all villages
+//         const query = villageId ? { villageId } : {};
+//         const villagesDetails = await khatauniDetailsWeb.find(query)
+//             .populate({
+//                 path: 'beneficiaryId',  // Ensure beneficiaryId is referenced correctly
+//                 select: 'beneficiaryName',  // Select the beneficiaryName from the Beneficiary schema
+//             })
+//             .exec();
+
+//         // Log the villages details for debugging
+//         console.log('Villages Details Before Grouping:', villagesDetails);
+
+//         if (!villagesDetails || villagesDetails.length === 0) {
+//             return next(new ErrorHandler('No village details found.', 404));
+//         }
+
+//         // Group village details by khatauniSankhya
+//         const groupedVillages = villagesDetails.reduce((acc, village) => {
+//             const khatauniSankhya = village.khatauniSankhya || 'N/A';
+
+//             // If khatauniSankhya is not already in the accumulator, create an entry for it
+//             if (!acc[khatauniSankhya]) {
+//                 acc[khatauniSankhya] = {
+//                     id: village._id,
+//                     khatauniId: village._id,
+//                     khatauniSankhya,
+//                     serialNumber: village.serialNumber || 'N/A',
+//                     khasraNumber: village.khasraNumber || 'N/A',
+//                     acquiredKhasraNumber: village.acquiredKhasraNumber || 'N/A',
+//                     areaVariety: village.areaVariety || 'N/A',
+//                     acquiredRakbha: village.acquiredRakbha || 'N/A',
+//                     isAllDocumentSubmitted: village.isAllDocumentSubmitted || 'N/A',
+//                     villageId: village.villageId || 'N/A',
+//                     beneficiaries: ''  // String to hold comma-separated beneficiary names
+//                 };
+//             }
+
+//             // Concatenate the beneficiary names into a comma-separated string
+//             const beneficiaryName = village.beneficiaryId?.beneficiaryName || 'N/A';
+//             acc[khatauniSankhya].beneficiaries = acc[khatauniSankhya].beneficiaries 
+//                 ? `${acc[khatauniSankhya].beneficiaries}, ${beneficiaryName}` 
+//                 : beneficiaryName;
+
+//             return acc;
+//         }, {});
+
+//         // Convert the groupedVillages object to an array
+//         const formattedVillagesDetails = Object.values(groupedVillages);
+
+//         console.log('Formatted Grouped Villages Details:', formattedVillagesDetails);
+
+//         // Send the formatted details as a response
+//         res.status(200).json({
+//             status: true,
+//             message: 'Success',
+//             villagesDetails: formattedVillagesDetails
+//         });
+//     } catch (error) {
+//         console.error('Error:', error);
+//         next(error);
+//     }
+// });
 
 export const getVillageDetails = catchAsyncError(async (req, res, next) => {
-    try {
-        const { userId } = req.query;
+    try {
+        const { userId } = req.query;
 
-        // If userId is provided, ensure we proceed
-        if (!userId) {
-            return next(new ErrorHandler('User ID is required.', 400));
-        }
+        // Ensure userId is provided
+        if (!userId) {
+            return next(new ErrorHandler('User ID is required.', 400));
+        }
 
-        // Fetch village details from mobileDashboard and populate khatauniId and related fields for each village
-        const villagesDetails = await mobileDashboard.find()
-        .populate({
-            path: 'khatauniId',  // Populate the khatauniId field, which references the khatauniDetails schema
-            select: 'khatauniSankhya khasraNumber areaVolume acquiredKhasraNumber',  // Select relevant fields from khatauniDetails
-        })
-        .populate({
-            path: 'beneficiary',  // Ensure this path matches the schema field
-            select: 'beneficiaryName',  // Select relevant fields from beneficiaryDetails
-        })
-        .exec();
-        
+        // Fetch village details based on villageId if provided, else fetch all villages
+        const villagesDetails = await khatauniDetailsWeb.find()
+            .populate({
+                path: 'beneficiaryId',  // Ensure beneficiaryId is referenced correctly
+                select: 'beneficiaryName',  // Select the beneficiaryName from the Beneficiary schema
+            })
+            .exec();
 
-        if (!villagesDetails || villagesDetails.length === 0) {
-            return next(new ErrorHandler('No village details found.', 404));
-        }
+        // Log for debugging
+        console.log('Villages Details Before Grouping:', villagesDetails);
 
-        // Format the village details for each village entry
-        const formattedVillagesDetails = villagesDetails.map(village => ({
-            id: village._id,
-            khatauniId: village.khatauniId ? village.khatauniId._id : 'N/A',
-            khatauniSankhya: village.khatauniId ? village.khatauniId.khatauniSankhya : 'N/A',
-            khasraNumber: village.khatauniId ? village.khatauniId.khasraNumber : 'N/A',
-            areaVolume: village.khatauniId ? village.khatauniId.areaVolume : 'N/A',
-            acquiredKhasraNumber: village.khatauniId ? village.khatauniId.acquiredKhasraNumber : 'N/A',
-            beneficiaryName: village.beneficiaryName ? village.beneficiaryName.beneficiaryName : 'N/A',
-        }));
-        
-        console.log('Formatted Villages Details:', formattedVillagesDetails);
-        
-        res.status(200).json({
-            status: true,
-            message: 'Success',
-            villagesDetails: formattedVillagesDetails
-        });
-            } catch (error) {
-        console.error('Error:', error);
-        next(error);
-    }
-});
+        if (!villagesDetails || villagesDetails.length === 0) {
+            return next(new ErrorHandler('No village details found.', 404));
+        }
 
+        // Fetch village names from the villageList schema
+        const villageIds = villagesDetails.map(village => village.villageId);
+        const villages = await villageList.find({ _id: { $in: villageIds } }).select('villageName villageNameHindi');
 
+        // Log the fetched villages for debugging
+        console.log('Fetched Villages:', villages);
 
-// DONT TOUCH THIS CODE //
+        // Group village details by khatauniSankhya
+        const groupedVillages = villagesDetails.reduce((acc, village) => {
+            const khatauniSankhya = village.khatauniSankhya || 'N/A';
+            
+            // Get village name from the villageList schema
+            const villageData = villages.find(v => v._id.toString() === village.villageId.toString());  // Compare ObjectIds as strings
+            const villageName = villageData ? villageData.villageName : 'Unknown Village';
 
-export const getVillageDetailsWithBeneficiaryCount = catchAsyncError(async (req, res, next) => {
-    try {
-        // Extract query parameters
-        const { userId,khatauniId, khatauniSankhya } = req.query;
-        console.log('Query Parameters:', { khatauniId, khatauniSankhya });
+            // Log the current village processing
+            console.log(`Processing village: ${khatauniSankhya}, villageId: ${village.villageId}, villageName: ${villageName}`);
 
-        // Validate the query parameters
-        if (!userId ||!khatauniId || !khatauniSankhya) {
-            console.log('Validation Error: Missing Khatauni ID or Sankhya');
-            return next(new ErrorHandler('Khatauni ID, userId and Sankhya are required.', 400));
-        }
+            // If khatauniSankhya is not already in the accumulator, create an entry for it
+            if (!acc[khatauniSankhya]) {
+                acc[khatauniSankhya] = {
+                    id: village._id,
+                    khatauniId: village._id,
+                    khatauniSankhya,
+                    serialNumber: village.serialNumber || 'N/A',
+                    khasraNumber: village.khasraNumber || 'N/A',
+                    acquiredKhasraNumber: village.acquiredKhasraNumber || 'N/A',
+                    areaVariety: village.areaVariety || 'N/A',
+                    acquiredRakbha: village.acquiredRakbha || 'N/A',
+                    isAllDocumentSubmitted: village.isAllDocumentSubmitted || 'N/A',
+                    villageId: village.villageId || 'N/A',
+                    villageName,  // Add villageName fetched from villageList schema
+                    beneficiaries: '',  // String to hold comma-separated beneficiary names
+                };
+            }
 
-        // Fetch the village details based on khatauniId and khatauniSankhya
-        const village = await khatauniDetails.findOne({
-            _id: khatauniId,
-            khatauniSankhya: khatauniSankhya
-        }).exec();
-        console.log('Fetched Village:', village);
+            // Concatenate the beneficiary names into a comma-separated string
+            const beneficiaryName = village.beneficiaryId?.beneficiaryName || 'N/A';
+            acc[khatauniSankhya].beneficiaries = acc[khatauniSankhya].beneficiaries 
+                ? `${acc[khatauniSankhya].beneficiaries}, ${beneficiaryName}` 
+                : beneficiaryName;
 
-        if (!village) {
-            console.log('No village found for provided Khatauni ID and Sankhya');
-            return next(new ErrorHandler('No village details found for the provided Khatauni ID and Sankhya.', 404));
-        }
+            return acc;
+        }, {});
 
-        // Fetch beneficiaries related to the khatauniId
-        const beneficiaries = await beneficiaryDetails.find({ khatauniId });
-        console.log('Fetched Beneficiaries:', beneficiaries);
+        // Convert the groupedVillages object to an array
+        const formattedVillagesDetails = Object.values(groupedVillages);
 
-        // Create the list of beneficiaries with ID and name
-        const beneficiaryList = beneficiaries.reduce((acc, beneficiary) => {
-            // Check if beneficiaryName exists and is a string
-            if (beneficiary.beneficiaryName && typeof beneficiary.beneficiaryName === 'string') {
-                const names = beneficiary.beneficiaryName.split(',').map(name => name.trim());
-                names.forEach((name, index) => {
-                    acc.push({
-                        id: acc.length + 1,
-                        name
-                    });
-                });
-            } else {
-                console.log('Skipped a beneficiary with invalid or missing beneficiaryName:', beneficiary);
-            }
-            return acc;
-        }, []);
-        console.log('Formatted Beneficiary List:', beneficiaryList);
+        console.log('Formatted Grouped Villages Details:', formattedVillagesDetails);
 
-        // Send the response
-        res.status(200).json({
-            success: true,
-            message: 'Village details with beneficiary counts fetched successfully.',
-            beneficiaries: beneficiaryList,
-            khasraNumber: village.khasraNumber,
-            areaVolume: village.areaVolume,
-            khatauniSankhya: village.khatauniSankhya,
-            beneficiaryCount: beneficiaryList.length
-        });
-    } catch (error) {
-        console.error('Error:', error);
-        next(error);
-    }
+        // Send the formatted details as a response
+        res.status(200).json({
+            status: true,
+            message: 'Success',
+            villagesDetails: formattedVillagesDetails
+        });
+    } catch (error) {
+        console.error('Error:', error);
+        next(error);
+    }
 });
 
 
 // DONT TOUCH THIS CODE //
 
-export const uploadDocs = catchAsyncError(async (req, res, next) => {
-    try {
-        const { beneficiaryId } = req.body;
-        const { beneficiaryName } = req.body;
+export const getBeneficiariesByKhatauniSankhya = catchAsyncError(async (req, res, next) => {
+    try {
+        const { khatauniSankhya } = req.query;
+        console.log('Query Parameters:', { khatauniSankhya });
 
-        // Validate beneficiaryId and beneficiaryName
-        if (!beneficiaryId || !beneficiaryName) {
-            return res.status(400).json({
-                success: false,
-                message: "Beneficiary ID and name are required",
-            });
-        }
+        // Validate query parameters
+        if (!khatauniSankhya) {
+            return next(new ErrorHandler('Khatauni Sankhya is required.', 400));
+        }
 
-        // Find the beneficiary
-        const beneficiary = await beneficiaryDetails.findById(beneficiaryId);
+        // Fetch all khatauni details matching the provided khatauniSankhya
+        const villages = await khatauniDetailsWeb.find({
+            khatauniSankhya: khatauniSankhya
+        })
+        .populate('beneficiaryId', 'beneficiaryId beneficiaryName')  // Populating beneficiary details
+        .exec();
 
-        if (!beneficiary) {
-            return res.status(404).json({
-                success: false,
-                message: "Beneficiary not found",
-            });
-        }
+        if (!villages || villages.length === 0) {
+            return next(new ErrorHandler('No beneficiaries found for the provided Khatauni Sankhya.', 404));
+        }
 
-        // Convert beneficiary names to an array
-        const beneficiaryNames = beneficiaryName.split(',').map(name => name.trim().toLowerCase());
+        // Extract beneficiaries from all matched records and map them to the desired format
+        const beneficiaries = villages.map(village => ({
+            beneficiaryId: village.beneficiaryId._id,
+            name: village.beneficiaryId.beneficiaryName
+        }));
 
-        // Process document files
-        const documents = {
-            landIndemnityBond: req.files['landIndemnityBond'] ? req.files['landIndemnityBond'].map(file => file.path.replace(/\\/g, '/')) : [],
-            structureIndemnityBond: req.files['structureIndemnityBond'] ? req.files['structureIndemnityBond'].map(file => file.path.replace(/\\/g, '/')) : [],
-            uploadAffidavit: req.files['uploadAffidavit'] ? req.files['uploadAffidavit'].map(file => file.path.replace(/\\/g, '/')) : [],
-            aadhaarCard: req.files['aadhaarCard'] ? req.files['aadhaarCard'].map(file => file.path.replace(/\\/g, '/')) : [],
-            panCard: req.files['panCard'] ? req.files['panCard'].map(file => file.path.replace(/\\/g, '/')) : [],
-            photo: req.files['photo'] ? req.files['photo'].map(file => file.path.replace(/\\/g, '/')) : [],
-            chequeOrPassbook: req.files['chequeOrPassbook'] ? req.files['chequeOrPassbook'].map(file => file.path.replace(/\\/g, '/')) : [],
-        };
-        console.log(req.body);
-        // Parse additional fields if provided
-        const aadhaarNumbers = req.body.aadhaarNumber ? JSON.parse(req.body.aadhaarNumber.replace(/^"|"$/g, '')) : [];
-        const panCardNumbers = req.body.panNumber ? JSON.parse(req.body.panNumber.replace(/^"|"$/g, '')) : [];
-        const confirmAccountNumber = req.body.confirmAccountNumber || '';
-        const isConsent = req.body.isConsent === 'true';
-        const remarks = req.body.remarks ? req.body.remarks.replace(/^'|'$/g, '') : '';
-        const ifscCodes = req.body.ifscCode ? JSON.parse(req.body.ifscCode.replace(/^"|"$/g, '')) : [];
-        const accountNumbers = req.body.accountNumber ? JSON.parse(req.body.accountNumber.replace(/^"|"$/g, '')) : [];
+        // Extract khasraNumber, areaVariety, and khatauniSankhya from the first record (since they are the same for all)
+        const { khasraNumber, areaVariety, khatauniSankhya: khatauni } = villages[0];
 
-        // Prepare update data
-        const updateData = {
-           
-                
-    
-            isConsent: isConsent,
-            remarks: remarks,
-            documents: {
-                landIndemnityBond: documents.landIndemnityBond,
-                structureIndemnityBond: documents.structureIndemnityBond,
-                uploadAffidavit: documents.uploadAffidavit,
-                aadhaarCard: documents.aadhaarCard,
-                panCard: documents.panCard,
-                photo: documents.photo,
-                chequeOrPassbook: documents.chequeOrPassbook,
-                accountNumber: accountNumbers,
-                ifscCode: ifscCodes ,
-                confirmAccountNumber: confirmAccountNumber ,
-                aadhaarNumber: aadhaarNumbers,
-                panNumber: panCardNumbers,
-            }
-        };
-        console.log(updateData);
-        
+        // Calculate the total beneficiary count
+        const totalBeneficiaryCount = beneficiaries.length;
 
-        // Update or create the document
-        const existingDoc = await beneficiaryDocs.findOneAndUpdate(
-            { beneficiaryId: beneficiaryId },
-            {
-                $addToSet: {
-                    beneficiaryName: { $each: beneficiaryNames }
-                },
-                $push: {
-                    'documents.landIndemnityBond': { $each: updateData.documents.landIndemnityBond },
-                    'documents.structureIndemnityBond': { $each: updateData.documents.structureIndemnityBond },
-                    'documents.uploadAffidavit': { $each: updateData.documents.uploadAffidavit },
-                    'documents.aadhaarCard': { $each: updateData.documents.aadhaarCard },
-                    'documents.panCard': { $each: updateData.documents.panCard },
-                    'documents.photo': { $each: updateData.documents.photo },
-                    'documents.chequeOrPassbook': { $each: updateData.documents.chequeOrPassbook },
-                    'documents.aadhaarNumber': { $each: updateData.documents.aadhaarNumber },
-                    'documents.panNumber': { $each: updateData.documents.panNumber },
-                    'documents.accountNumber': { $each: updateData.documents.accountNumber },
-                    'documents.ifscCode': { $each: updateData.documents.ifscCode },
-                    // 'documents.confirmAccountNumber': { $each: updateData.documents.confirmAccountNumber }
-                },
-                $set: {
-                    isConsent: updateData.isConsent,
-                    remarks: updateData.remarks
-                }
-            },
-            { new: true, upsert: true }
-        );
-        console.log(existingDoc);
-        
-
-        // Return success response
-        res.status(200).json({
-            success: true,
-            message: 'Documents and details uploaded successfully for the beneficiary.',
-            // data: {
-            //     beneficiaryId: existingDoc.beneficiaryId,
-            //     beneficiaryName: beneficiaryNames[0] || '', // Use the first name or default to empty string
-            //     lastUpdated: existingDoc.updatedAt,
-            //     uploadedDocuments: existingDoc
-            // }
-        });
-    } catch (error) {
-        console.error("Error in uploadDocs:", error);
-        res.status(500).json({
-            success: false,
-            message: 'Internal Server Error',
-        });
-    }
+        // Send the response with all beneficiaries and additional information
+        res.status(200).json({
+            success: true,
+            message: 'Beneficiary details fetched successfully.',
+            beneficiaries,  // List of beneficiaries with IDs and names
+            beneficiaryCount: totalBeneficiaryCount,  // Total count of beneficiaries
+            khasraNumber,  // Khasra Number
+            areaVariety,   // Area Variety
+            khatauniSankhya: khatauni  // Khatauni Sankhya
+        });
+    } catch (error) {
+        console.error('Error:', error);
+        next(error);
+    }
 });
+
+export const uploadDocs = async (req, res) => {
+    try {
+        const { beneficiaries, khatauniSankhya } = req.body; // Removed beneficiaryId as it's no longer needed
+        const files = req.files;
+
+        // Convert req.files into a plain object for cleaner logging
+        const cleanedFiles = JSON.parse(JSON.stringify(files));
+
+        // Check if required fields are missing
+        if (!beneficiaries || !khatauniSankhya || !Object.keys(cleanedFiles).length) {
+            return res.status(400).json({
+                status: false,
+                message: 'Required fields are missing.',
+                // filesReceived: cleanedFiles
+            });
+        }
+
+        // Process beneficiaries and files
+        const processedBeneficiaries = beneficiaries.map((beneficiary, index) => {
+            const photo = (files[`beneficiaries[${index}][photo]`] && files[`beneficiaries[${index}][photo]`][0]?.filename) || '';
+            const landIndemnityBond = (files[`beneficiaries[${index}][landIndemnityBond]`] && files[`beneficiaries[${index}][landIndemnityBond]`][0]?.filename) || '';
+            const structureIndemnityBond = (files[`beneficiaries[${index}][structureIndemnityBond]`] && files[`beneficiaries[${index}][structureIndemnityBond]`][0]?.filename) || '';
+            const uploadAffidavit = (files[`beneficiaries[${index}][uploadAffidavit]`] && files[`beneficiaries[${index}][uploadAffidavit]`][0]?.filename) || '';
+            const aadhaarCard = (files[`beneficiaries[${index}][aadhaarCard]`] && files[`beneficiaries[${index}][aadhaarCard]`][0]?.filename) || '';
+            const panCard = (files[`beneficiaries[${index}][panCard]`] && files[`beneficiaries[${index}][panCard]`][0]?.filename) || '';
+            const chequeOrPassbook = (files[`beneficiaries[${index}][chequeOrPassbook]`] && files[`beneficiaries[${index}][chequeOrPassbook]`][0]?.filename) || '';
+
+            return {
+                beneficiaryId: new mongoose.Types.ObjectId(beneficiary.beneficiaryId), // Use specific beneficiaryId
+                beneficiaryName: beneficiary.beneficiaryName || '',
+                accountNumber: beneficiary.accountNumber || '',
+                ifscCode: beneficiary.ifscCode || '',
+                confirmAccountNumber: beneficiary.confirmAccountNumber || '',
+                aadhaarNumber: beneficiary.aadhaarNumber || '',
+                panCardNumber: beneficiary.panCardNumber || '',
+                remarks: beneficiary.remarks || '',
+                isConsent1: beneficiary.isConsent || '',
+                isConsent2: beneficiary.isConsent || '', // Convert string to boolean
+                // Convert string to boolean
+                photo,
+                landIndemnityBond,
+                structureIndemnityBond,
+                uploadAffidavit,
+                aadhaarCard,
+                panCard,
+                chequeOrPassbook,
+                khatauniSankhya // Include khatauniSankhya in each beneficiary object
+            };
+        });
+
+        // Save or update beneficiary documents
+        for (const beneficiary of processedBeneficiaries) {
+            let beneficiaryDoc = await beneficiaryDocs.findOne({
+                beneficiaryId: beneficiary.beneficiaryId,
+                beneficiaryName: beneficiary.beneficiaryName
+            });
+
+            if (beneficiaryDoc) {
+                // If document exists, update it
+                Object.assign(beneficiaryDoc, beneficiary);
+            } else {
+                // If not, create a new one
+                beneficiaryDoc = new beneficiaryDocs(beneficiary);
+            }
+
+            await beneficiaryDoc.save();
+        }
+
+        // Return success response
+        res.status(200).json({
+            status: true,
+            message: 'Documents and beneficiary details uploaded successfully',
+            data: processedBeneficiaries
+        });
+    } catch (error) {
+        console.error('Error uploading documents:');
+        res.status(500).json({
+            status: false,
+            message: 'Error uploading documents',
+            // error: error.message
+        });
+    }
+};
+
+
+
+
+
+
+
+
+
 
 
 
